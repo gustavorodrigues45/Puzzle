@@ -13,6 +13,8 @@
 struct Vec2 {
 	float x;
 	float y;
+	Vec2() = default;
+	Vec2(float x, float y) : x(x), y(y) {}
 };
 
 float randomRange(float minValue, float maxValue) {
@@ -32,13 +34,13 @@ struct Piece {
 	bool snapped = false;
 
 	static float degToRad(float deg) {
-		return deg * 3.14159265359f / 180.0f;
+		constexpr float pi = 3.14159265359f;
+		return deg * pi / 180.0f;
 	}
 
 	static float normalizeAngle(float angle) {
-		while (angle < 0.0f) angle += 360.0f;
-		while (angle >= 360.0f) angle -= 360.0f;
-		return angle;
+		angle = std::fmod(angle, 360.0f);
+		return angle < 0.0f ? angle + 360.0f : angle;
 	}
 
 	static float angleDistance(float a, float b) {
@@ -74,12 +76,14 @@ struct Piece {
 
 	bool containsPoint(const Vec2& point) const {
 		std::vector<Vec2> poly = worldShape();
+		if (poly.size() < 3) return false;
+
 		bool inside = false;
 		for (size_t i = 0, j = poly.size() - 1; i < poly.size(); j = i++) {
 			const Vec2& vi = poly[i];
 			const Vec2& vj = poly[j];
 			bool intersect = ((vi.y > point.y) != (vj.y > point.y)) &&
-				(point.x < (vj.x - vi.x) * (point.y - vi.y) / ((vj.y - vi.y) + 0.00001f) + vi.x);
+				(point.x < (vj.x - vi.x) * (point.y - vi.y) / (vj.y - vi.y + 0.00001f) + vi.x);
 			if (intersect) {
 				inside = !inside;
 			}
@@ -131,6 +135,11 @@ public:
 	static constexpr float scaleStep = 0.08f;
 	static constexpr float extraTimeBonus = 15.0f;
 
+	// UI Colors
+	static constexpr float bgColorR = 0.95f, bgColorG = 0.96f, bgColorB = 0.98f;
+	static constexpr float borderColorR = 0.83f, borderColorG = 0.85f, borderColorB = 0.9f;
+	static constexpr float textColorR = 0.2f, textColorG = 0.25f, textColorB = 0.35f;
+
 	PuzzleGame() = default;
 
 	void initialize() {
@@ -141,7 +150,7 @@ public:
 	}
 
 	void render() {
-		glClearColor(0.95f, 0.96f, 0.98f, 1.0f);
+		glClearColor(bgColorR, bgColorG, bgColorB, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 
 		setupProjection();
@@ -202,10 +211,12 @@ public:
 					selectedPiece = i;
 					isDragging = true;
 					dragOffset = {pieces[i].position.x - mouseWorld.x, pieces[i].position.y - mouseWorld.y};
-					Piece top = pieces[i];
-					pieces.erase(pieces.begin() + i);
-					pieces.push_back(top);
-					selectedPiece = static_cast<int>(pieces.size()) - 1;
+					if (i != static_cast<int>(pieces.size()) - 1) {
+						Piece top = pieces[i];
+						pieces.erase(pieces.begin() + i);
+						pieces.push_back(top);
+						selectedPiece = static_cast<int>(pieces.size()) - 1;
+					}
 					break;
 				}
 			}
@@ -311,73 +322,49 @@ private:
 		pieces.clear();
 		templates.clear();
 
-		Piece largeTriA;
-		largeTriA.baseShape = {{0.0f, 0.0f}, {1.9f, 0.0f}, {0.0f, 1.9f}};
-		largeTriA.color[0] = 0.93f;
-		largeTriA.color[1] = 0.33f;
-		largeTriA.color[2] = 0.26f;
-		pieces.push_back(largeTriA);
+		auto createPiece = [](std::vector<Vec2>&& shape, float r, float g, float b) {
+			Piece p;
+			p.baseShape = std::move(shape);
+			p.color[0] = r; p.color[1] = g; p.color[2] = b;
+			return p;
+		};
 
-		Piece largeTriB;
-		largeTriB.baseShape = {{0.0f, 0.0f}, {-1.9f, 0.0f}, {0.0f, 1.9f}};
-		largeTriB.color[0] = 0.99f;
-		largeTriB.color[1] = 0.74f;
-		largeTriB.color[2] = 0.18f;
-		pieces.push_back(largeTriB);
+		pieces.push_back(createPiece({{0.0f, 0.0f}, {1.9f, 0.0f}, {0.0f, 1.9f}}, 0.93f, 0.33f, 0.26f));
+		pieces.push_back(createPiece({{0.0f, 0.0f}, {-1.9f, 0.0f}, {0.0f, 1.9f}}, 0.99f, 0.74f, 0.18f));
+		pieces.push_back(createPiece({{0.0f, 0.0f}, {1.35f, 0.0f}, {0.0f, 1.35f}}, 0.17f, 0.73f, 0.35f));
+		pieces.push_back(createPiece({{-0.62f, -0.62f}, {0.62f, -0.62f}, {0.62f, 0.62f}, {-0.62f, 0.62f}}, 0.12f, 0.8f, 0.78f));
+		pieces.push_back(createPiece({{-0.82f, -0.54f}, {0.56f, -0.54f}, {0.90f, 0.54f}, {-0.48f, 0.54f}}, 0.92f, 0.47f, 0.7f));
 
-		Piece mediumTri;
-		mediumTri.baseShape = {{0.0f, 0.0f}, {1.35f, 0.0f}, {0.0f, 1.35f}};
-		mediumTri.color[0] = 0.17f;
-		mediumTri.color[1] = 0.73f;
-		mediumTri.color[2] = 0.35f;
-		pieces.push_back(mediumTri);
+		auto createTemplate = [](float r, float g, float b, const std::array<PiecePose, 5>& poses) {
+			TargetTemplate t;
+			t.frameColor[0] = r; t.frameColor[1] = g; t.frameColor[2] = b;
+			t.poses = poses;
+			return t;
+		};
 
-		Piece square;
-		square.baseShape = {{-0.62f, -0.62f}, {0.62f, -0.62f}, {0.62f, 0.62f}, {-0.62f, 0.62f}};
-		square.color[0] = 0.12f;
-		square.color[1] = 0.8f;
-		square.color[2] = 0.78f;
-		pieces.push_back(square);
-
-		Piece parallelogram;
-		parallelogram.baseShape = {{-0.82f, -0.54f}, {0.56f, -0.54f}, {0.90f, 0.54f}, {-0.48f, 0.54f}};
-		parallelogram.color[0] = 0.92f;
-		parallelogram.color[1] = 0.47f;
-		parallelogram.color[2] = 0.7f;
-		pieces.push_back(parallelogram);
-
-		TargetTemplate blue;
-		blue.frameColor[0] = 0.34f; blue.frameColor[1] = 0.56f; blue.frameColor[2] = 0.90f;
-		blue.poses = {{
+		templates.push_back(createTemplate(0.34f, 0.56f, 0.90f, {{
 			PiecePose{{3.20f, -1.55f}, 180.0f, 0.58f},
 			PiecePose{{5.10f, -1.55f}, 180.0f, 0.58f},
 			PiecePose{{4.15f, 0.05f}, 315.0f, 0.58f},
 			PiecePose{{3.35f, 1.55f}, 45.0f, 0.48f},
 			PiecePose{{5.00f, 1.55f}, 315.0f, 0.48f}
-		}};
-		templates.push_back(blue);
+		}}));
 
-		TargetTemplate orange;
-		orange.frameColor[0] = 0.90f; orange.frameColor[1] = 0.49f; orange.frameColor[2] = 0.18f;
-		orange.poses = {{
+		templates.push_back(createTemplate(0.90f, 0.49f, 0.18f, {{
 			PiecePose{{3.15f, -1.40f}, 90.0f, 0.58f},
 			PiecePose{{5.15f, -1.40f}, 270.0f, 0.58f},
 			PiecePose{{4.15f, 0.05f}, 0.0f, 0.58f},
 			PiecePose{{3.35f, 1.50f}, 45.0f, 0.48f},
 			PiecePose{{4.95f, 1.50f}, 315.0f, 0.48f}
-		}};
-		templates.push_back(orange);
+		}}));
 
-		TargetTemplate green;
-		green.frameColor[0] = 0.44f; green.frameColor[1] = 0.78f; green.frameColor[2] = 0.24f;
-		green.poses = {{
+		templates.push_back(createTemplate(0.44f, 0.78f, 0.24f, {{
 			PiecePose{{3.20f, -1.50f}, 180.0f, 0.58f},
 			PiecePose{{5.10f, -1.50f}, 180.0f, 0.58f},
 			PiecePose{{4.15f, 0.00f}, 315.0f, 0.58f},
 			PiecePose{{3.35f, 1.50f}, 135.0f, 0.48f},
 			PiecePose{{5.00f, 1.50f}, 225.0f, 0.48f}
-		}};
-		templates.push_back(green);
+		}}));
 	}
 
 	void resetLevel(int level) {
@@ -457,7 +444,7 @@ private:
 	}
 
 	void drawPiece(const Piece& piece, bool target) const {
-		std::vector<Vec2> polygon = target ? piece.targetShape() : piece.worldShape();
+		const std::vector<Vec2> polygon = target ? piece.targetShape() : piece.worldShape();
 
 		if (target) {
 			glColor4f(0.25f, 0.25f, 0.25f, 0.25f);
@@ -482,15 +469,15 @@ private:
 	}
 
 	void drawBoard() const {
-		glColor3f(0.83f, 0.85f, 0.9f);
+		glColor3f(borderColorR, borderColorG, borderColorB);
 		glLineWidth(2.0f);
 		glBegin(GL_LINES);
 		glVertex2f(0.0f, -5.625f);
 		glVertex2f(0.0f, 5.625f);
 		glEnd();
 
-		drawString(-9.4f, 4.9f, GLUT_BITMAP_HELVETICA_18, "Area de montagem das pecas", 0.2f, 0.25f, 0.35f);
-		drawString(1.2f, 4.9f, GLUT_BITMAP_HELVETICA_18, "Silhueta alvo da fase", 0.2f, 0.25f, 0.35f);
+		drawString(-9.4f, 4.9f, GLUT_BITMAP_HELVETICA_18, "Area de montagem das pecas", textColorR, textColorG, textColorB);
+		drawString(1.2f, 4.9f, GLUT_BITMAP_HELVETICA_18, "Silhueta alvo da fase", textColorR, textColorG, textColorB);
 	}
 
 	void drawTargetFrame() const {
@@ -536,11 +523,11 @@ private:
 	void drawHud() const {
 		std::ostringstream hud;
 		hud << "Fase: " << currentLevel << "    Tempo: " << std::fixed << std::setprecision(1) << std::max(0.0f, timeRemaining) << "s";
-		drawString(-9.4f, -5.1f, GLUT_BITMAP_HELVETICA_18, hud.str(), 0.13f, 0.14f, 0.19f);
+		drawString(-9.4f, -5.1f, GLUT_BITMAP_HELVETICA_18, hud.str(), textColorR, textColorG, textColorB);
 
 		drawString(-9.4f, -5.45f, GLUT_BITMAP_HELVETICA_12,
 				   "Controles: Mouse arrasta | R gira | + e - escalam | N reinicia na fase 1",
-				   0.13f, 0.14f, 0.19f);
+				   textColorR, textColorG, textColorB);
 
 		drawTimeButton();
 	}
