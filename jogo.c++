@@ -1,4 +1,10 @@
+#if __has_include(<GL/freeglut.h>)
 #include <GL/freeglut.h>
+#elif __has_include(<GL/glut.h>)
+#include <GL/glut.h>
+#else
+#error "OpenGL GLUT header not found. Install freeglut or GLUT development headers."
+#endif
 
 #include <algorithm>
 #include <cmath>
@@ -13,7 +19,7 @@
 struct Vec2 {
 	float x;
 	float y;
-	Vec2() = default;
+	Vec2() : x(0.0f), y(0.0f) {}
 	Vec2(float x, float y) : x(x), y(y) {}
 };
 
