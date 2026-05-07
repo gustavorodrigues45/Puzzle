@@ -1,7 +1,7 @@
 /*
  * Trabalho Prático G1 - Jogo Pedagógico: Tangram Infinito
  * Disciplina: Computação Gráfica
- * Autor: Gustavo da Encarnação Rodrigues
+ * Autores: Fernando Munir Velho Schmitt e Gustavo da Encarnação Rodrigues
  *
  * Descrição: Jogo educativo baseado em Tangram onde o usuário posiciona,
  * rotaciona e redimensiona peças geométricas para encaixá-las em um padrão alvo.
