@@ -1,3 +1,18 @@
+/*
+ * Trabalho Prático G1 - Jogo Pedagógico: Tangram Infinito
+ * Disciplina: Computação Gráfica
+ * Autor: Gustavo da Encarnação Rodrigues
+ *
+ * Descrição: Jogo educativo baseado em Tangram onde o usuário posiciona,
+ * rotaciona e redimensiona peças geométricas para encaixá-las em um padrão alvo.
+ *
+ * Requisitos implementados:
+ * - 5 objetos geométricos (2 triângulos grandes, 1 médio, 1 quadrado, 1 paralelogramo)
+ * - Transformações: translação (mouse), rotação (tecla R), escala (teclas +/-)
+ * - Interação: mouse para arrastar peças, teclado para manipulação
+ * - Progressão de fases com dificuldade crescente
+ */
+
 #include <GL/freeglut.h>
 
 #include <algorithm>
@@ -10,6 +25,7 @@
 #include <string>
 #include <vector>
 
+// Representa um ponto 2D no espaço SRU (Sistema de Referência do Universo)
 struct Vec2 {
 	float x;
 	float y;
@@ -22,16 +38,18 @@ float randomRange(float minValue, float maxValue) {
 	return minValue + t * (maxValue - minValue);
 }
 
+// SRO (Sistema de Referência do Objeto): Cada peça armazena sua geometria em coordenadas locais
+// e aplica transformações (posição, rotação, escala) para posicionamento no SRU
 struct Piece {
-	std::vector<Vec2> baseShape;
-	Vec2 position{0.0f, 0.0f};
-	float rotation = 0.0f;
-	float scale = 1.0f;
+	std::vector<Vec2> baseShape;  // Vértices da peça em coordenadas locais (SRO)
+	Vec2 position{0.0f, 0.0f};   // Translação no SRU
+	float rotation = 0.0f;        // Rotação em graus
+	float scale = 1.0f;           // Fator de escala uniforme
 	float color[3] = {1.0f, 1.0f, 1.0f};
-	Vec2 targetPosition{0.0f, 0.0f};
-	float targetRotation = 0.0f;
-	float targetScale = 1.0f;
-	bool snapped = false;
+	Vec2 targetPosition{0.0f, 0.0f};   // Posição alvo para alinhamento automático
+	float targetRotation = 0.0f;       // Rotação alvo
+	float targetScale = 1.0f;          // Escala alvo
+	bool snapped = false;              // Indica se peça está no alvo
 
 	static float degToRad(float deg) {
 		constexpr float pi = 3.14159265359f;
@@ -50,6 +68,8 @@ struct Piece {
 		return std::min(diff, 360.0f - diff);
 	}
 
+	// Transforma vértices de SRO para SRU: aplicar escala, rotação e translação
+	// Ordem: escala local → rotação → translação para posição final
 	std::vector<Vec2> transformedShape(const Vec2& origin, float rot, float scl) const {
 		std::vector<Vec2> result;
 		result.reserve(baseShape.size());
@@ -74,6 +94,8 @@ struct Piece {
 		return transformedShape(targetPosition, targetRotation, targetScale);
 	}
 
+	// Detecção de ponto dentro de polígono: algoritmo de raycasting
+	// Verifica se o ponto está contido na peça atual para seleção com mouse
 	bool containsPoint(const Vec2& point) const {
 		std::vector<Vec2> poly = worldShape();
 		if (poly.size() < 3) return false;
@@ -123,13 +145,16 @@ struct TargetTemplate {
 	std::array<PiecePose, 5> poses;
 };
 
+// Gerenciador principal do jogo: lógica de renderização, interação e física
+// SRU: coordenadas do mundo vão de [-10, 10] em X e [-5.625, 5.625] em Y (proporção 16:9)
 class PuzzleGame {
 public:
 	static constexpr int windowWidth = 1280;
 	static constexpr int windowHeight = 720;
-	static constexpr float snapPosDist = 0.6f;
-	static constexpr float snapRotDist = 10.0f;
-	static constexpr float snapScaleDist = 0.12f;
+	// Tolerâncias para alinhamento automático de peças (snap)
+	static constexpr float snapPosDist = 0.6f;     // Distância máxima em posição
+	static constexpr float snapRotDist = 10.0f;    // Diferença máxima em rotação (graus)
+	static constexpr float snapScaleDist = 0.12f;  // Diferença máxima em escala
 	static constexpr float minScale = 0.5f;
 	static constexpr float maxScale = 1.7f;
 	static constexpr float scaleStep = 0.08f;
@@ -321,6 +346,10 @@ private:
 	void buildPieces() {
 		pieces.clear();
 		templates.clear();
+
+		// SRO das 5 peças do Tangram:
+		// Cada peça é definida por seus vértices em coordenadas locais,
+		// depois transformadas para SRU com posição, rotação e escala
 
 		auto createPiece = [](std::vector<Vec2>&& shape, float r, float g, float b) {
 			Piece p;
